@@ -1,0 +1,17 @@
+# 忽略 skills 目錄內容，但保留資料夾
+skills/*
+!skills/.gitkeep
+
+# 忽略根目錄的 zip 檔案
+*.zip
+
+# Claude Code 本地設定
+.claude/
+
+# macOS
+.DS_Store
+
+# 編輯器
+*.swp
+*.swo
+*~

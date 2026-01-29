@@ -15,7 +15,7 @@
 
 | CLI | 指令檔案 | 安裝路徑 | 呼叫方式 |
 |-----|---------|---------|---------|
-| Claude Code | `SKILL.md` | `~/.claude/plugins/` | `/skill-name` |
+| Claude Code | `SKILL.md` | `~/.claude/skills/` | 自動載入 |
 | Codex CLI | `SKILL.md` | `~/.codex/skills/` | `$skill-name` |
 | Gemini CLI | `SKILL.md` | `~/.gemini/extensions/` | 自動載入 |
 
@@ -172,19 +172,14 @@ echo 'alias skill-talk="/path/to/skill-install/talk.sh"' >> ~/.zshrc
 
 ## 目錄結構
 
-### Claude Code Plugin
+### Claude Code Skills
 
 ```
-~/.claude/plugins/<plugin-name>/
-├── .claude-plugin/
-│   └── plugin.json
-├── commands/           # 斜線命令 (*.md)
-├── skills/             # Skills
-│   └── <skill-name>/
-│       └── SKILL.md
-├── agents/             # Agents (*.md)
-└── hooks/
-    └── hooks.json
+~/.claude/skills/<skill-name>/
+├── SKILL.md            # Skill 定義檔（必要）
+├── references/         # 參考文件（選用）
+├── examples/           # 範例檔案（選用）
+└── scripts/            # 工具腳本（選用）
 ```
 
 ### Codex CLI Skills
@@ -227,7 +222,7 @@ Skill 內容...
 ```
 
 **呼叫方式：**
-- Claude Code: `/my-skill` 或 AI 自動偵測
+- Claude Code: AI 自動偵測並載入
 - Codex CLI: `$my-skill`
 - Gemini CLI: 自動載入到上下文
 

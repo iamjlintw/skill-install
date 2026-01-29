@@ -27,7 +27,7 @@ readonly TEMP_DIR="${TMPDIR:-/tmp}/ai-skill-install"
 
 # Claude Code 路徑
 readonly CLAUDE_DIR="${HOME}/.claude"
-readonly CLAUDE_PLUGINS_DIR="${CLAUDE_DIR}/plugins"
+readonly CLAUDE_SKILLS_DIR="${CLAUDE_DIR}/skills"
 readonly CLAUDE_COMMANDS_DIR="${CLAUDE_DIR}/commands"
 
 # Codex CLI 路徑
@@ -106,7 +106,7 @@ ensure_directories() {
 
   case "$TARGET_CLI" in
     claude)
-      mkdir -p "${CLAUDE_PLUGINS_DIR}"
+      mkdir -p "${CLAUDE_SKILLS_DIR}"
       mkdir -p "${CLAUDE_COMMANDS_DIR}"
       ;;
     codex)
@@ -320,7 +320,7 @@ install_from_git() {
   local url="$1"
   local name
   name=$(get_name_from_url "$url")
-  local target_dir="${CLAUDE_PLUGINS_DIR}/${name}"
+  local target_dir="${CLAUDE_SKILLS_DIR}/${name}"
 
   log_info "正在從 Git 安裝：$url"
 
@@ -360,7 +360,7 @@ install_from_local() {
   local source_path="$1"
   local name
   name=$(get_name_from_path "$source_path")
-  local target_dir="${CLAUDE_PLUGINS_DIR}/${name}"
+  local target_dir="${CLAUDE_SKILLS_DIR}/${name}"
 
   # 轉換為絕對路徑
   source_path=$(cd "$source_path" && pwd)
@@ -722,12 +722,12 @@ install_gemini_extension() {
 # Claude Code 安裝函式（原有函式重構）
 # ============================================================================
 
-# 從單一 SKILL.md 檔案安裝
+# 從單一 SKILL.md 檔案安裝到 Claude Code
 install_from_skill_file() {
   local file="$1"
   local name=""
 
-  log_info "正在安裝 SKILL.md 檔案：$file"
+  log_info "${COLOR_CYAN}[Claude Code]${COLOR_RESET} 正在安裝 SKILL.md：$file"
 
   # 從 frontmatter 取得 name
   name=$(get_name_from_frontmatter "$file")
@@ -743,52 +743,39 @@ install_from_skill_file() {
 
   log_info "Skill 名稱：$name"
 
-  # 建立目標目錄結構
-  local plugin_dir="${CLAUDE_PLUGINS_DIR}/${name}"
-  local skill_dir="${plugin_dir}/skills/${name}"
+  # 目標目錄：~/.claude/skills/<skill-name>/
+  local skill_dir="${CLAUDE_SKILLS_DIR}/${name}"
 
   # 檢查是否已安裝
-  if [[ -d "$plugin_dir" ]]; then
-    log_warn "已存在同名 plugin：$name"
+  if [[ -d "$skill_dir" ]]; then
+    log_warn "已存在同名 skill：$name"
     read -r -p "是否覆蓋？[y/N] " confirm
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
       log_info "已取消安裝"
       return 0
     fi
-    rm -rf "$plugin_dir"
+    rm -rf "$skill_dir"
   fi
 
-  # 建立目錄結構
+  # 建立目錄並複製 SKILL.md
   mkdir -p "$skill_dir"
-  mkdir -p "${plugin_dir}/.claude-plugin"
-
-  # 複製 SKILL.md
   cp "$file" "${skill_dir}/SKILL.md"
 
-  # 從 SKILL.md 讀取 description
-  local desc=""
-  if head -1 "$file" | grep -q "^---"; then
-    desc=$(sed -n '/^---$/,/^---$/p' "$file" | grep -E "^description:" | head -1 | sed 's/^description:[[:space:]]*//' | tr -d '\r')
-  fi
-
-  # 建立 plugin.json
-  cat > "${plugin_dir}/.claude-plugin/plugin.json" << EOF
-{
-  "name": "${name}",
-  "version": "1.0.0",
-  "description": "${desc:-Skill installed from single SKILL.md file}"
-}
-EOF
+  # 複製同目錄下的其他資源（references/, examples/, scripts/）
+  local source_dir
+  source_dir=$(dirname "$file")
+  for subdir in references examples scripts; do
+    if [[ -d "${source_dir}/${subdir}" ]]; then
+      cp -R "${source_dir}/${subdir}" "${skill_dir}/"
+      log_info "已複製：${subdir}/"
+    fi
+  done
 
   log_success "已安裝：$name"
-  log_info "路徑：$plugin_dir"
+  log_info "路徑：$skill_dir"
   log_info "結構："
-  echo "  ${plugin_dir}/"
-  echo "  ├── .claude-plugin/"
-  echo "  │   └── plugin.json"
-  echo "  └── skills/"
-  echo "      └── ${name}/"
-  echo "          └── SKILL.md"
+  echo "  ${skill_dir}/"
+  echo "  └── SKILL.md"
 }
 
 # 從單一 command.md 檔案安裝
@@ -971,52 +958,32 @@ install_from_zip() {
   rm -rf "$extract_dir"
 }
 
-# 從簡單 skill 目錄安裝（只有 SKILL.md 的目錄）
+# 從簡單 skill 目錄安裝（只有 SKILL.md 的目錄）- Claude Code
 install_skill_directory() {
   local source_dir="$1"
   local name="$2"
 
-  log_info "正在安裝 skill 目錄：$name"
+  log_info "${COLOR_CYAN}[Claude Code]${COLOR_RESET} 正在安裝 skill 目錄：$name"
 
-  # 建立目標目錄結構
-  local plugin_dir="${CLAUDE_PLUGINS_DIR}/${name}"
-  local skill_dir="${plugin_dir}/skills/${name}"
+  # 目標目錄：~/.claude/skills/<skill-name>/
+  local skill_dir="${CLAUDE_SKILLS_DIR}/${name}"
 
   # 檢查是否已安裝
-  if [[ -d "$plugin_dir" ]]; then
-    log_warn "已存在同名 plugin：$name"
+  if [[ -d "$skill_dir" ]]; then
+    log_warn "已存在同名 skill：$name"
     read -r -p "是否覆蓋？[y/N] " confirm
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
       log_info "已取消安裝"
       return 0
     fi
-    rm -rf "$plugin_dir"
+    rm -rf "$skill_dir"
   fi
 
-  # 建立目錄結構
-  mkdir -p "$skill_dir"
-  mkdir -p "${plugin_dir}/.claude-plugin"
-
-  # 複製所有檔案
-  cp -R "${source_dir}/"* "$skill_dir/"
-
-  # 從 SKILL.md 讀取 description
-  local desc=""
-  if [[ -f "${skill_dir}/SKILL.md" ]] && head -1 "${skill_dir}/SKILL.md" | grep -q "^---"; then
-    desc=$(sed -n '/^---$/,/^---$/p' "${skill_dir}/SKILL.md" | grep -E "^description:" | head -1 | sed 's/^description:[[:space:]]*//' | tr -d '\r')
-  fi
-
-  # 建立 plugin.json
-  cat > "${plugin_dir}/.claude-plugin/plugin.json" << EOF
-{
-  "name": "${name}",
-  "version": "1.0.0",
-  "description": "${desc:-Skill installed from directory}"
-}
-EOF
+  # 複製整個目錄
+  cp -R "$source_dir" "$skill_dir"
 
   log_success "已安裝：$name"
-  log_info "路徑：$plugin_dir"
+  log_info "路徑：$skill_dir"
 }
 
 # 主安裝函式
@@ -1132,47 +1099,47 @@ cmd_install() {
 # 列表函式
 # ============================================================================
 
-# 列出 Claude Code plugins
+# 列出 Claude Code skills
 list_claude() {
-  echo -e "${COLOR_CYAN}[Claude Code]${COLOR_RESET} ${CLAUDE_PLUGINS_DIR}"
+  echo -e "${COLOR_CYAN}[Claude Code]${COLOR_RESET} ${CLAUDE_SKILLS_DIR}"
   echo ""
 
-  if [[ ! -d "$CLAUDE_PLUGINS_DIR" ]] || [[ -z "$(ls -A "$CLAUDE_PLUGINS_DIR" 2>/dev/null)" ]]; then
-    echo "  （尚未安裝任何 plugin）"
+  if [[ ! -d "$CLAUDE_SKILLS_DIR" ]] || [[ -z "$(ls -A "$CLAUDE_SKILLS_DIR" 2>/dev/null)" ]]; then
+    echo "  （尚未安裝任何 skill）"
     echo ""
     return 0
   fi
 
-  for plugin_dir in "${CLAUDE_PLUGINS_DIR}"/*; do
-    if [[ -d "$plugin_dir" ]]; then
+  for skill_dir in "${CLAUDE_SKILLS_DIR}"/*; do
+    if [[ -d "$skill_dir" ]]; then
       local name
-      name=$(basename "$plugin_dir")
+      name=$(basename "$skill_dir")
       local desc=""
 
-      if [[ -f "${plugin_dir}/.claude-plugin/plugin.json" ]]; then
-        desc=$(jq -r '.description // ""' "${plugin_dir}/.claude-plugin/plugin.json" 2>/dev/null || echo "")
-      fi
-
-      local cmd_count=0 skill_count=0 agent_count=0
-
-      if [[ -d "${plugin_dir}/commands" ]]; then
-        cmd_count=$(find "${plugin_dir}/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-      fi
-
-      if [[ -d "${plugin_dir}/skills" ]]; then
-        skill_count=$(find "${plugin_dir}/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
-      fi
-
-      if [[ -d "${plugin_dir}/agents" ]]; then
-        agent_count=$(find "${plugin_dir}/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+      # 從 SKILL.md 取得 description
+      if [[ -f "${skill_dir}/SKILL.md" ]] && head -1 "${skill_dir}/SKILL.md" | grep -q "^---"; then
+        desc=$(sed -n '/^---$/,/^---$/p' "${skill_dir}/SKILL.md" | grep -E "^description:" | head -1 | sed 's/^description:[[:space:]]*//' | tr -d '\r')
       fi
 
       echo -e "  ${COLOR_GREEN}${name}${COLOR_RESET}"
+
       if [[ -n "$desc" ]]; then
         echo "    描述：$desc"
       fi
-      echo "    組件：commands($cmd_count) skills($skill_count) agents($agent_count)"
-      echo "    路徑：$plugin_dir"
+
+      # 檢查 SKILL.md
+      if [[ -f "${skill_dir}/SKILL.md" ]]; then
+        echo "    檔案：SKILL.md"
+      fi
+
+      # 檢查附加資源
+      local resources=""
+      [[ -d "${skill_dir}/references" ]] && resources+="references/ "
+      [[ -d "${skill_dir}/examples" ]] && resources+="examples/ "
+      [[ -d "${skill_dir}/scripts" ]] && resources+="scripts/ "
+      [[ -n "$resources" ]] && echo "    資源：$resources"
+
+      echo "    路徑：$skill_dir"
       echo ""
     fi
   done
@@ -1296,7 +1263,7 @@ get_target_dir() {
 
   case "$TARGET_CLI" in
     claude)
-      echo "${CLAUDE_PLUGINS_DIR}/${name}"
+      echo "${CLAUDE_SKILLS_DIR}/${name}"
       ;;
     codex)
       echo "${CODEX_SKILLS_DIR}/${name}"
@@ -1311,7 +1278,7 @@ get_target_dir() {
 get_target_parent_dir() {
   case "$TARGET_CLI" in
     claude)
-      echo "${CLAUDE_PLUGINS_DIR}"
+      echo "${CLAUDE_SKILLS_DIR}"
       ;;
     codex)
       echo "${CODEX_SKILLS_DIR}"
@@ -1492,7 +1459,7 @@ AI CLI Skill 安裝工具 v${VERSION}
   ${SCRIPT_NAME} remove my-skill -t codex
 
 安裝路徑：
-  Claude Code:  ${CLAUDE_PLUGINS_DIR}
+  Claude Code:  ${CLAUDE_SKILLS_DIR}
   Codex CLI:    ${CODEX_SKILLS_DIR}
   Gemini CLI:   ${GEMINI_EXTENSIONS_DIR}
 

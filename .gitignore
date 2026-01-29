@@ -1,5 +1,5 @@
-# 忽略 skills 目錄內容，但保留資料夾
-skills/*
+# 忽略 skills 目錄所有檔案，但保留資料夾
+skills/**
 !skills/.gitkeep
 
 # 忽略根目錄的 zip 檔案
